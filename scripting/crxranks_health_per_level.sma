@@ -4,9 +4,9 @@
 #include <fun>
 #include <hamsandwich>
 
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.1"
 
-new g_pMode, g_iMode
+new g_pMode, g_pConstant, g_iMode, g_iConstant
 new Trie:g_tHealth
 
 public plugin_init()
@@ -15,15 +15,26 @@ public plugin_init()
 	register_cvar("CRXRanksHPL", PLUGIN_VERSION, FCVAR_SERVER|FCVAR_SPONLY|FCVAR_UNLOGGED)
 	RegisterHam(Ham_Spawn, "player", "OnPlayerSpawn", 1)
 	g_pMode = register_cvar("crxranks_hpl_mode", "0")
-	g_tHealth = TrieCreate()
-	ReadFile()
+	g_pConstant = register_cvar("crxranks_hpl_constant", "0")
 }
 
 public plugin_cfg()
+{
 	g_iMode = get_pcvar_num(g_pMode)
+	g_iConstant = get_pcvar_num(g_pConstant)
+
+	if(!using_constant_mode())
+	{
+		g_tHealth = TrieCreate()
+		ReadFile()
+	}
+}
 
 public plugin_end()
-	TrieDestroy(g_tHealth)
+{
+	if(!using_constant_mode())
+		TrieDestroy(g_tHealth)
+}
 	
 ReadFile()
 {
@@ -94,6 +105,13 @@ public OnPlayerSpawn(id)
 {
 	if(!is_user_alive(id))
 		return
+
+	if(using_constant_mode())
+	{
+		new iLevel = crxranks_get_user_level(id)
+		add_health_amount(id, iLevel == 0 ? g_iConstant : iLevel * g_iConstant)
+		return
+	}
 		
 	new szLevel[10]
 	num_to_str(crxranks_get_user_level(id), szLevel, charsmax(szLevel))
@@ -102,6 +120,12 @@ public OnPlayerSpawn(id)
 	{
 		new iHealth
 		TrieGetCell(g_tHealth, szLevel, iHealth)
-		set_user_health(id, !g_iMode ? iHealth : get_user_health(id) + iHealth)
+		add_health_amount(id, iHealth)
 	}
 }
+
+add_health_amount(const id, const iAmount)
+	set_user_health(id, !g_iMode ? iAmount : get_user_health(id) + iAmount)
+
+bool:using_constant_mode()
+	return g_iConstant != 0
